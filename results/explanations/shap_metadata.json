@@ -1,0 +1,10 @@
+{
+    "model": "random_forest",
+    "random_state": 42,
+    "background_size": 100,
+    "explain_size": 300,
+    "n_features": 105,
+    "positive_class": ">50K",
+    "model_output": "probability",
+    "shap_version": "0.54.1"
+}

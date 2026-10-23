@@ -1,0 +1,11 @@
+{
+    "model": "random_forest",
+    "random_state": 42,
+    "background_size": 100,
+    "explain_size": 300,
+    "model_refitted_during_perturbations": false,
+    "perturbations": [
+        "age_plus_one_year",
+        "hours_per_week_plus_one"
+    ]
+}

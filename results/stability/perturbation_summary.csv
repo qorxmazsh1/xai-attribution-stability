@@ -1,0 +1,3 @@
+perturbation,n,prediction_unchanged_rate,mean_abs_probability_change,mean_shap_cosine,mean_abs_shap_rank_correlation,mean_relative_shap_l1_change
+age_plus_one_year,300,0.9966666666666667,0.005348470311416559,0.9981519077960112,0.9987738917175549,0.03236278884564322
+hours_per_week_plus_one,300,1.0,0.006112958920429954,0.9979482538614036,0.9985721635743875,0.034886335061675405
