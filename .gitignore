@@ -1,0 +1,24 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+.ruff_cache/
+
+# Secrets
+.env
+.env.*
+
+# Local data
+data/raw/*
+data/interim/*
+data/processed/*
+
+# Generated artifacts
+experiments/*
+results/metrics/*
+results/tables/*
+results/figures/*
+
+# Notebook noise
+.ipynb_checkpoints/
