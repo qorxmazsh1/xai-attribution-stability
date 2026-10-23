@@ -9,3 +9,4 @@ seaborn
 PyYAML
 pytest
 ruff
+ucimlrepo
