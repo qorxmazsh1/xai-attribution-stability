@@ -1,0 +1,5 @@
+Metadata-Version: 2.4
+Name: xai-attribution-stability
+Version: 0.1.0
+Summary: Reproducible research on feature attribution stability in tabular ML
+Requires-Python: <3.13,>=3.11
