@@ -1,4 +1,4 @@
-
+﻿
 """Preprocessing utilities for tabular classification."""
 
 from dataclasses import dataclass
@@ -96,6 +96,11 @@ def prepare_data(
     if not 0 < test_size < 1:
         raise ValueError("test_size must be between 0 and 1.")
 
+    if target_column not in df.columns:
+        raise ValueError(
+            f"Target column '{target_column}' not found in dataset."
+        )
+
     X = df.drop(columns=[target_column]).copy()
     X = X.replace({pd.NA: np.nan})
     y = df[target_column].copy()
@@ -125,3 +130,4 @@ def prepare_data(
         X_test_processed=X_test_processed,
         feature_names=feature_names,
     )
+
