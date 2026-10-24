@@ -51,32 +51,39 @@ def calculate_similarity(
     """Compare two attribution vectors."""
     eps = 1e-12
 
-    cosine = float(
-        np.dot(original, perturbed)
-        / (
-            np.linalg.norm(original)
-            * np.linalg.norm(perturbed)
-            + eps
+    original_norm = np.linalg.norm(original)
+    perturbed_norm = np.linalg.norm(perturbed)
+
+    if original_norm < eps and perturbed_norm < eps:
+        cosine = 1.0
+    elif original_norm < eps or perturbed_norm < eps:
+        cosine = 0.0
+    else:
+        cosine = float(
+            np.dot(original, perturbed)
+            / (original_norm * perturbed_norm)
         )
-    )
 
-    original_ranks = pd.Series(np.abs(original)).rank().to_numpy()
-    perturbed_ranks = pd.Series(np.abs(perturbed)).rank().to_numpy()
+    original_ranks = pd.Series(np.abs(original)).rank()
+    perturbed_ranks = pd.Series(np.abs(perturbed)).rank()
 
-    rank_correlation = float(
-        pd.Series(original_ranks).corr(
-            pd.Series(perturbed_ranks),
-            method="pearson",
+    if original_ranks.nunique() < 2 or perturbed_ranks.nunique() < 2:
+        rank_correlation = float("nan")
+    else:
+        rank_correlation = float(
+            original_ranks.corr(
+                perturbed_ranks,
+                method="pearson",
+            )
         )
-    )
 
+    original_l1 = np.abs(original).sum()
     relative_l1_change = float(
         np.abs(perturbed - original).sum()
-        / (np.abs(original).sum() + eps)
+        / (original_l1 + eps)
     )
 
     return cosine, rank_correlation, relative_l1_change
-
 
 def main() -> None:
     """Run controlled perturbation experiments."""
@@ -215,7 +222,6 @@ def main() -> None:
 
     results = pd.DataFrame(perturbation_results)
 
-    results = pd.DataFrame(perturbation_results)
 
     results.to_csv(
         RESULTS_DIR / "perturbation_stability.csv",
