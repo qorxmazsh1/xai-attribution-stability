@@ -1,0 +1,19 @@
+{
+    "random_state": 42,
+    "background_size": 100,
+    "explain_size": 300,
+    "positive_class": ">50K",
+    "model_refitted_during_perturbations": false,
+    "models": [
+        "random_forest",
+        "logistic_regression"
+    ],
+    "perturbations": [
+        "age_plus_one_year",
+        "hours_per_week_plus_one"
+    ],
+    "shap_output_scale": {
+        "random_forest": "probability",
+        "logistic_regression": "log_odds"
+    }
+}

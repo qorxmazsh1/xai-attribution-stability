@@ -4,8 +4,19 @@
     "background_size": 100,
     "explain_size": 300,
     "model_refitted_during_perturbations": false,
+    "shap_output_scale": "probability",
     "perturbations": [
         "age_plus_one_year",
-        "hours_per_week_plus_one"
-    ]
+        "hours_per_week_plus_one",
+        "education_num_plus_one",
+        "hours_per_week_plus_five",
+        "capital_gain_plus_ten_percent"
+    ],
+    "valid_rows_per_perturbation": {
+        "age_plus_one_year": 300,
+        "hours_per_week_plus_one": 300,
+        "education_num_plus_one": 297,
+        "hours_per_week_plus_five": 299,
+        "capital_gain_plus_ten_percent": 33
+    }
 }

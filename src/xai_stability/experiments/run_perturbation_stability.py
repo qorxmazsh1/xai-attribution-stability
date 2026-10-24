@@ -1,5 +1,5 @@
 
-"""Measure SHAP stability under small input perturbations."""
+"""Measure SHAP stability under controlled input perturbations."""
 
 import json
 from pathlib import Path
@@ -9,10 +9,12 @@ import pandas as pd
 
 from xai_stability.data.load_data import load_adult_dataset
 from xai_stability.data.preprocess import prepare_data
-from xai_stability.models.train import train_random_forest
 from xai_stability.explainability.shap_explainer import (
     explain_tree_model,
 )
+from xai_stability.experiments.perturbations import perturb_feature
+from xai_stability.models.train import train_random_forest
+
 
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
 RESULTS_DIR = PROJECT_ROOT / "results" / "stability"
@@ -20,6 +22,14 @@ RESULTS_DIR = PROJECT_ROOT / "results" / "stability"
 RANDOM_STATE = 42
 BACKGROUND_SIZE = 100
 EXPLAIN_SIZE = 300
+
+PERTURBATION_NAMES = [
+    "age_plus_one_year",
+    "hours_per_week_plus_one",
+    "education_num_plus_one",
+    "hours_per_week_plus_five",
+    "capital_gain_plus_ten_percent",
+]
 
 
 def to_dense(matrix) -> np.ndarray:
@@ -29,7 +39,10 @@ def to_dense(matrix) -> np.ndarray:
     return np.asarray(matrix)
 
 
-def transform_raw(preprocessor, X: pd.DataFrame) -> pd.DataFrame:
+def transform_raw(
+    preprocessor,
+    X: pd.DataFrame,
+) -> pd.DataFrame:
     """Transform raw data using the already-fitted preprocessor."""
     X_clean = X.replace({pd.NA: np.nan})
     transformed = preprocessor.transform(X_clean)
@@ -48,7 +61,7 @@ def calculate_similarity(
     original: np.ndarray,
     perturbed: np.ndarray,
 ) -> tuple[float, float, float]:
-    """Compare two attribution vectors."""
+    """Compare original and perturbed SHAP attribution vectors."""
     eps = 1e-12
 
     original_norm = np.linalg.norm(original)
@@ -67,7 +80,10 @@ def calculate_similarity(
     original_ranks = pd.Series(np.abs(original)).rank()
     perturbed_ranks = pd.Series(np.abs(perturbed)).rank()
 
-    if original_ranks.nunique() < 2 or perturbed_ranks.nunique() < 2:
+    if (
+        original_ranks.nunique() < 2
+        or perturbed_ranks.nunique() < 2
+    ):
         rank_correlation = float("nan")
     else:
         rank_correlation = float(
@@ -85,6 +101,7 @@ def calculate_similarity(
 
     return cosine, rank_correlation, relative_l1_change
 
+
 def main() -> None:
     """Run controlled perturbation experiments."""
     RESULTS_DIR.mkdir(parents=True, exist_ok=True)
@@ -92,7 +109,7 @@ def main() -> None:
     df = load_adult_dataset()
     splits = prepare_data(df)
 
-    # Train once. Keep this exact fitted model fixed for all comparisons.
+    # Train once; keep the fitted model fixed for every perturbation.
     model = train_random_forest(
         splits.X_train_processed,
         splits.y_train,
@@ -100,6 +117,7 @@ def main() -> None:
     )
 
     rng = np.random.default_rng(RANDOM_STATE)
+
     background_size = min(
         BACKGROUND_SIZE,
         splits.X_train_processed.shape[0],
@@ -118,18 +136,21 @@ def main() -> None:
     feature_names = list(splits.feature_names)
 
     background = pd.DataFrame(
-        to_dense(splits.X_train_processed[background_indices]),
+        to_dense(
+            splits.X_train_processed[background_indices]
+        ),
         columns=feature_names,
     )
 
     X_original_raw = splits.X_test.iloc[:explain_size].copy()
+
     X_original = pd.DataFrame(
         to_dense(splits.X_test_processed[:explain_size]),
         columns=feature_names,
         index=X_original_raw.index,
     )
 
-    # Explain the original examples once.
+    # Calculate original explanations and predictions once.
     original_shap, _ = explain_tree_model(
         model,
         background,
@@ -137,36 +158,42 @@ def main() -> None:
     )
 
     positive_index = list(model.classes_).index(">50K")
+
     original_probabilities = model.predict_proba(
         splits.X_test_processed[:explain_size]
     )[:, positive_index]
+
     original_predictions = model.predict(
         splits.X_test_processed[:explain_size]
     )
 
-    perturbation_results = []
-
-    perturbations = {
-        "age_plus_one_year": ("age", 90),
-        "hours_per_week_plus_one": ("hours_per_week", 99),
+    # Map original row labels to their positions in the explanation arrays.
+    original_position_by_index = {
+        index: position
+        for position, index in enumerate(X_original_raw.index)
     }
 
-    for perturbation_name, (column, upper_bound) in perturbations.items():
-        # Apply the positive perturbation only where it stays in bounds.
-        values = pd.to_numeric(X_original_raw[column])
-        valid_mask = values < upper_bound
+    perturbation_results = []
 
-        X_perturbed_raw = X_original_raw.loc[valid_mask].copy()
+    for perturbation_name in PERTURBATION_NAMES:
+        X_perturbed_raw, valid_mask = perturb_feature(
+            X_original_raw,
+            perturbation_name,
+        )
+
         if X_perturbed_raw.empty:
+            print(
+                f"Skipping {perturbation_name}: "
+                "no eligible rows."
+            )
             continue
-
-        X_perturbed_raw[column] = values.loc[valid_mask] + 1
 
         X_perturbed = transform_raw(
             splits.preprocessor,
             X_perturbed_raw,
         )
 
+        # Explain the perturbed rows without retraining the model.
         perturbed_shap, _ = explain_tree_model(
             model,
             background,
@@ -174,12 +201,43 @@ def main() -> None:
         )
 
         transformed_array = X_perturbed.to_numpy()
+
         perturbed_probabilities = model.predict_proba(
             transformed_array
         )[:, positive_index]
-        perturbed_predictions = model.predict(transformed_array)
 
-        original_positions = np.flatnonzero(valid_mask.to_numpy())
+        perturbed_predictions = model.predict(
+            transformed_array
+        )
+
+        # Preserve exact alignment with the original SHAP arrays.
+        original_positions = np.array(
+            [
+                original_position_by_index[index]
+                for index in X_perturbed_raw.index
+            ],
+            dtype=int,
+        )
+
+        if len(original_positions) != len(X_perturbed_raw):
+            raise RuntimeError(
+                "Could not align perturbed rows with original rows."
+            )
+
+        if len(valid_mask) != len(X_original_raw):
+            raise RuntimeError(
+                "Perturbation mask length does not match input data."
+            )
+
+        changed_columns = {
+            "age_plus_one_year": "age",
+            "hours_per_week_plus_one": "hours_per_week",
+            "education_num_plus_one": "education_num",
+            "hours_per_week_plus_five": "hours_per_week",
+            "capital_gain_plus_ten_percent": "capital_gain",
+        }
+
+        feature_changed = changed_columns[perturbation_name]
 
         for j, original_position in enumerate(original_positions):
             cosine, rank_corr, relative_l1 = calculate_similarity(
@@ -187,31 +245,43 @@ def main() -> None:
                 perturbed_shap[j],
             )
 
+            original_prediction = original_predictions[
+                original_position
+            ]
+            perturbed_prediction = perturbed_predictions[j]
+
+            original_probability = original_probabilities[
+                original_position
+            ]
+            perturbed_probability = perturbed_probabilities[j]
+
             perturbation_results.append(
                 {
                     "sample_index": str(
                         X_original_raw.index[original_position]
                     ),
+                    "model": "random_forest",
                     "perturbation": perturbation_name,
-                    "feature_changed": column,
+                    "feature_changed": feature_changed,
                     "original_prediction": str(
-                        original_predictions[original_position]
+                        original_prediction
                     ),
-                    "perturbed_prediction": str(perturbed_predictions[j]),
+                    "perturbed_prediction": str(
+                        perturbed_prediction
+                    ),
                     "prediction_unchanged": bool(
-                        original_predictions[original_position]
-                        == perturbed_predictions[j]
+                        original_prediction == perturbed_prediction
                     ),
                     "original_probability": float(
-                        original_probabilities[original_position]
+                        original_probability
                     ),
                     "perturbed_probability": float(
-                        perturbed_probabilities[j]
+                        perturbed_probability
                     ),
                     "absolute_probability_change": float(
                         abs(
-                            perturbed_probabilities[j]
-                            - original_probabilities[original_position]
+                            perturbed_probability
+                            - original_probability
                         )
                     ),
                     "shap_cosine_similarity": cosine,
@@ -220,8 +290,12 @@ def main() -> None:
                 }
             )
 
-    results = pd.DataFrame(perturbation_results)
+    if not perturbation_results:
+        raise RuntimeError(
+            "No perturbation results were generated."
+        )
 
+    results = pd.DataFrame(perturbation_results)
 
     results.to_csv(
         RESULTS_DIR / "perturbation_stability.csv",
@@ -232,12 +306,18 @@ def main() -> None:
         results.groupby("perturbation")
         .agg(
             n=("sample_index", "count"),
-            prediction_unchanged_rate=("prediction_unchanged", "mean"),
+            prediction_unchanged_rate=(
+                "prediction_unchanged",
+                "mean",
+            ),
             mean_abs_probability_change=(
                 "absolute_probability_change",
                 "mean",
             ),
-            mean_shap_cosine=("shap_cosine_similarity", "mean"),
+            mean_shap_cosine=(
+                "shap_cosine_similarity",
+                "mean",
+            ),
             mean_abs_shap_rank_correlation=(
                 "absolute_shap_rank_correlation",
                 "mean",
@@ -261,17 +341,29 @@ def main() -> None:
         "background_size": background_size,
         "explain_size": explain_size,
         "model_refitted_during_perturbations": False,
-        "perturbations": list(perturbations),
+        "shap_output_scale": "probability",
+        "perturbations": PERTURBATION_NAMES,
+        "valid_rows_per_perturbation": {
+            name: int(
+                (results["perturbation"] == name).sum()
+            )
+            for name in PERTURBATION_NAMES
+        },
     }
 
-    (RESULTS_DIR / "perturbation_metadata.json").write_text(
+    (
+        RESULTS_DIR / "perturbation_metadata.json"
+    ).write_text(
         json.dumps(metadata, indent=4),
         encoding="utf-8",
     )
 
     print("\nPerturbation stability summary:")
     print(summary.to_string(index=False))
-    print(f"\nResults saved to: {RESULTS_DIR}")
+
+    print(f"\nDetailed results: {RESULTS_DIR / 'perturbation_stability.csv'}")
+    print(f"Summary: {RESULTS_DIR / 'perturbation_summary.csv'}")
+    print(f"Metadata: {RESULTS_DIR / 'perturbation_metadata.json'}")
 
 
 if __name__ == "__main__":
