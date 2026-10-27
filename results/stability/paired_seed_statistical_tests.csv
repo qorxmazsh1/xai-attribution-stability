@@ -1,0 +1,6 @@
+perturbation,n_seeds,mean_rf_minus_lr,exact_sign_flip_p,lr_lower_change_all_seeds
+age_plus_one_year,5,0.03308457274552269,0.0625,True
+capital_gain_plus_ten_percent,5,0.12139260169704262,0.0625,True
+education_num_plus_one,5,0.04960093935648714,0.0625,True
+hours_per_week_plus_five,5,0.10490250878185417,0.0625,True
+hours_per_week_plus_one,5,0.033627697614582036,0.0625,True

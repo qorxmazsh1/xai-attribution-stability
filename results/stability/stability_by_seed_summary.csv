@@ -1,0 +1,11 @@
+model,perturbation,mean,std,count
+logistic_regression,age_plus_one_year,0.004083993872209109,0.0001149952319071631,5
+logistic_regression,capital_gain_plus_ten_percent,0.033978907272439636,0.0035715914345303586,5
+logistic_regression,education_num_plus_one,0.05464080516255,0.0027069154457776074,5
+logistic_regression,hours_per_week_plus_five,0.0285704994577018,0.0008633600620885717,5
+logistic_regression,hours_per_week_plus_one,0.0057124297757091425,0.00017404466355041241,5
+random_forest,age_plus_one_year,0.037168566617731796,0.005282922705889013,5
+random_forest,capital_gain_plus_ten_percent,0.15537150896948226,0.07817540493450051,5
+random_forest,education_num_plus_one,0.10424174451903714,0.007772244790223599,5
+random_forest,hours_per_week_plus_five,0.13347300823955593,0.0036938660006327908,5
+random_forest,hours_per_week_plus_one,0.03934012739029118,0.0072241779728888355,5
