@@ -10,10 +10,20 @@
     ],
     "perturbations": [
         "age_plus_one_year",
-        "hours_per_week_plus_one"
+        "hours_per_week_plus_one",
+        "education_num_plus_one",
+        "hours_per_week_plus_five",
+        "capital_gain_plus_ten_percent"
     ],
     "shap_output_scale": {
         "random_forest": "probability",
         "logistic_regression": "log_odds"
-    }
+    },
+    "notes": [
+        "Both models use the same train/test split.",
+        "Both models use the same background sample.",
+        "The fitted preprocessor is reused for all perturbations.",
+        "Perturbations are applied to valid rows only.",
+        "SHAP output scales differ between the two models."
+    ]
 }

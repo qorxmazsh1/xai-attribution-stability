@@ -1,5 +1,5 @@
 
-"""Compare SHAP stability across baseline models."""
+"""Compare SHAP stability across baseline models and perturbations."""
 
 import json
 from pathlib import Path
@@ -13,10 +13,12 @@ from xai_stability.explainability.shap_explainer import (
     explain_linear_model,
     explain_tree_model,
 )
+from xai_stability.experiments.perturbations import perturb_feature
 from xai_stability.models.train import (
     train_logistic_regression,
     train_random_forest,
 )
+
 
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
 RESULTS_DIR = PROJECT_ROOT / "results" / "stability"
@@ -27,8 +29,11 @@ EXPLAIN_SIZE = 300
 POSITIVE_CLASS = ">50K"
 
 PERTURBATIONS = {
-    "age_plus_one_year": ("age", 90),
-    "hours_per_week_plus_one": ("hours_per_week", 99),
+    "age_plus_one_year": "age",
+    "hours_per_week_plus_one": "hours_per_week",
+    "education_num_plus_one": "education_num",
+    "hours_per_week_plus_five": "hours_per_week",
+    "capital_gain_plus_ten_percent": "capital_gain",
 }
 
 
@@ -40,10 +45,9 @@ def to_dense(matrix) -> np.ndarray:
 
 
 def transform_raw(preprocessor, X: pd.DataFrame) -> pd.DataFrame:
-    """Transform raw data with the fitted preprocessor."""
+    """Transform raw data using the already-fitted preprocessor."""
     X_clean = X.replace({pd.NA: np.nan})
-    transformed = preprocessor.transform(X_clean)
-    transformed = to_dense(transformed)
+    transformed = to_dense(preprocessor.transform(X_clean))
 
     return pd.DataFrame(
         transformed,
@@ -56,8 +60,9 @@ def calculate_similarity(
     original: np.ndarray,
     perturbed: np.ndarray,
 ) -> tuple[float, float]:
-    """Calculate cosine similarity and absolute-SHAP rank correlation."""
+    """Calculate SHAP cosine similarity and absolute-SHAP rank correlation."""
     eps = 1e-12
+
     original_norm = np.linalg.norm(original)
     perturbed_norm = np.linalg.norm(perturbed)
 
@@ -91,7 +96,7 @@ def calculate_similarity(
 
 
 def main() -> None:
-    """Run the same perturbations against both fitted models."""
+    """Compare model stability under controlled input perturbations."""
     RESULTS_DIR.mkdir(parents=True, exist_ok=True)
 
     df = load_adult_dataset()
@@ -162,33 +167,29 @@ def main() -> None:
             positive_class=POSITIVE_CLASS,
         )
 
-        classes = list(model.classes_)
-        positive_index = classes.index(POSITIVE_CLASS)
-
-        original_probabilities = model.predict_proba(
-            X_original.to_numpy()
-        )[:, positive_index]
-
-        original_predictions = model.predict(
-            X_original.to_numpy()
+        positive_index = list(model.classes_).index(
+            POSITIVE_CLASS
         )
 
-        for perturbation_name, (column, upper_bound) in (
-            PERTURBATIONS.items()
-        ):
-            values = pd.to_numeric(X_original_raw[column])
-            valid_mask = values < upper_bound
+        original_array = X_original.to_numpy()
 
-            X_perturbed_raw = X_original_raw.loc[
-                valid_mask
-            ].copy()
+        original_probabilities = model.predict_proba(
+            original_array
+        )[:, positive_index]
+
+        original_predictions = model.predict(original_array)
+
+        for perturbation_name, feature_name in PERTURBATIONS.items():
+            print(f"  Perturbation: {perturbation_name}")
+
+            X_perturbed_raw, valid_mask = perturb_feature(
+                X_original_raw,
+                perturbation_name,
+            )
 
             if X_perturbed_raw.empty:
+                print("    Skipped: no valid rows.")
                 continue
-
-            X_perturbed_raw[column] = (
-                values.loc[valid_mask] + 1
-            )
 
             X_perturbed = transform_raw(
                 splits.preprocessor,
@@ -202,32 +203,31 @@ def main() -> None:
                 positive_class=POSITIVE_CLASS,
             )
 
-            X_perturbed_array = X_perturbed.to_numpy()
+            perturbed_array = X_perturbed.to_numpy()
 
             perturbed_probabilities = model.predict_proba(
-                X_perturbed_array
+                perturbed_array
             )[:, positive_index]
 
             perturbed_predictions = model.predict(
-                X_perturbed_array
+                perturbed_array
             )
 
-            original_positions = np.flatnonzero(
-                valid_mask.to_numpy()
+            # Match perturbed rows to their original test-row positions.
+            original_positions = X_original_raw.index.get_indexer(
+                X_perturbed_raw.index
             )
 
             for j, original_position in enumerate(
                 original_positions
             ):
-                cosine, rank_corr = calculate_similarity(
-                    original_shap[original_position],
-                    perturbed_shap[j],
-                )
-
-                original_vector = original_shap[
-                    original_position
-                ]
+                original_vector = original_shap[original_position]
                 perturbed_vector = perturbed_shap[j]
+
+                cosine, rank_corr = calculate_similarity(
+                    original_vector,
+                    perturbed_vector,
+                )
 
                 relative_l1 = float(
                     np.abs(
@@ -242,9 +242,7 @@ def main() -> None:
                 probability_change = float(
                     abs(
                         perturbed_probabilities[j]
-                        - original_probabilities[
-                            original_position
-                        ]
+                        - original_probabilities[original_position]
                     )
                 )
 
@@ -252,28 +250,24 @@ def main() -> None:
                     {
                         "model": model_name,
                         "perturbation": perturbation_name,
-                        "feature_changed": column,
+                        "feature_changed": feature_name,
                         "sample_index": str(
-                            X_original_raw.index[
-                                original_position
-                            ]
+                            X_perturbed_raw.index[j]
                         ),
                         "prediction_unchanged": bool(
-                            original_predictions[
-                                original_position
-                            ]
+                            original_predictions[original_position]
                             == perturbed_predictions[j]
                         ),
                         "absolute_probability_change": (
                             probability_change
                         ),
                         "shap_cosine_similarity": cosine,
-                        "absolute_shap_rank_correlation": (
-                            rank_corr
-                        ),
+                        "absolute_shap_rank_correlation": rank_corr,
                         "relative_shap_l1_change": relative_l1,
                     }
                 )
+
+            print(f"    Valid rows: {len(X_perturbed_raw)}")
 
     results = pd.DataFrame(all_results)
 
@@ -332,6 +326,13 @@ def main() -> None:
             "random_forest": "probability",
             "logistic_regression": "log_odds",
         },
+        "notes": [
+            "Both models use the same train/test split.",
+            "Both models use the same background sample.",
+            "The fitted preprocessor is reused for all perturbations.",
+            "Perturbations are applied to valid rows only.",
+            "SHAP output scales differ between the two models.",
+        ],
     }
 
     (
