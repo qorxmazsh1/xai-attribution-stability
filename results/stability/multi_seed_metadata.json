@@ -1,0 +1,37 @@
+{
+    "seeds": [
+        42,
+        123,
+        2026,
+        7,
+        21
+    ],
+    "background_size": 100,
+    "explain_size": 300,
+    "positive_class": ">50K",
+    "models": [
+        "random_forest",
+        "logistic_regression"
+    ],
+    "perturbations": [
+        "age_plus_one_year",
+        "hours_per_week_plus_one",
+        "education_num_plus_one",
+        "hours_per_week_plus_five",
+        "capital_gain_plus_ten_percent"
+    ],
+    "shap_output_scale": {
+        "random_forest": "probability",
+        "logistic_regression": "log_odds"
+    },
+    "notes": [
+        "Each seed creates a new stratified train/test split.",
+        "Preprocessing is fitted only on each seed's training data.",
+        "Both models use the same split within a given seed.",
+        "The background sample and explanation sample are seed-specific.",
+        "Models are retrained for each seed, not for each perturbation.",
+        "Across-seed standard deviations describe variation across five runs.",
+        "SHAP output scales differ between the two models.",
+        "Capital-gain perturbations may have smaller sample sizes."
+    ]
+}
