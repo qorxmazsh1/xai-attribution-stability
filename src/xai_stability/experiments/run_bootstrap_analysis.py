@@ -3,7 +3,7 @@
 
 import json
 from pathlib import Path
-
+from statistics import NormalDist
 import numpy as np
 import pandas as pd
 
@@ -29,6 +29,40 @@ METRICS = {
     "relative_shap_l1_change": "mean_relative_shap_l1_change",
 }
 
+def wilson_interval(
+    successes: int,
+    n: int,
+    confidence_level: float = CONFIDENCE_LEVEL,
+) -> tuple[float, float]:
+    """Calculate a Wilson confidence interval for a proportion."""
+    if n <= 0:
+        return float("nan"), float("nan")
+
+    z = NormalDist().inv_cdf(
+        1 - (1 - confidence_level) / 2
+    )
+    proportion = successes / n
+    z_squared = z**2
+
+    denominator = 1 + z_squared / n
+
+    center = (
+        proportion + z_squared / (2 * n)
+    ) / denominator
+
+    margin = (
+        z
+        * np.sqrt(
+            proportion * (1 - proportion) / n
+            + z_squared / (4 * n**2)
+        )
+        / denominator
+    )
+
+    return (
+        float(max(0.0, center - margin)),
+        float(min(1.0, center + margin)),
+    )
 
 def bootstrap_mean_ci(
     values: np.ndarray,
@@ -110,10 +144,16 @@ def main() -> None:
                 errors="coerce",
             ).to_numpy()
 
-            estimate, lower, upper = bootstrap_mean_ci(
-                values,
-                rng,
-            )
+            if source_column == "prediction_unchanged":
+                valid_values = values[np.isfinite(values)]
+                n_valid = len(valid_values)
+                successes = int(np.sum(valid_values))
+
+                estimate = float(successes / n_valid) if n_valid > 0 else float("nan")
+
+                lower, upper = wilson_interval(successes, n_valid)
+        else:
+            estimate, lower, upper = bootstrap_mean_ci(values, rng)
 
             rows.append(
                 {
