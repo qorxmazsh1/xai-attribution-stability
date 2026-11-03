@@ -3,7 +3,6 @@
 
 import pandas as pd
 
-
 EXPECTED_COLUMNS = {
     "age",
     "workclass",

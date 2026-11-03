@@ -7,7 +7,6 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import pandas as pd
 
-
 ROOT = Path(__file__).resolve().parents[3]
 INPUT_PATH = ROOT / "results" / "stability" / "multi_seed_stability.csv"
 OUTPUT_DIR = ROOT / "results" / "stability"
@@ -28,7 +27,7 @@ def exact_sign_flip_test(differences: list[float]) -> float:
     permuted_means = []
     for signs in product([-1, 1], repeat=len(values)):
         mean_difference = sum(
-            sign * value for sign, value in zip(signs, values)
+            sign * value for sign, value in zip(signs, values, strict = True)
         ) / len(values)
         permuted_means.append(abs(mean_difference))
 

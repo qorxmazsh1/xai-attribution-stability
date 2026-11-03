@@ -1,12 +1,11 @@
 
 """Load and cache the UCI Adult dataset."""
 
-from pathlib import Path
 import re
+from pathlib import Path
 
 import pandas as pd
 from ucimlrepo import fetch_ucirepo
-
 
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
 RAW_DATA_DIR = PROJECT_ROOT / "data" / "raw"

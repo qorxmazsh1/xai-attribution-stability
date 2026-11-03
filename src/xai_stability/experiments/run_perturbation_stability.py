@@ -9,12 +9,11 @@ import pandas as pd
 
 from xai_stability.data.load_data import load_adult_dataset
 from xai_stability.data.preprocess import prepare_data
+from xai_stability.experiments.perturbations import perturb_feature
 from xai_stability.explainability.shap_explainer import (
     explain_tree_model,
 )
-from xai_stability.experiments.perturbations import perturb_feature
 from xai_stability.models.train import train_random_forest
-
 
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
 RESULTS_DIR = PROJECT_ROOT / "results" / "stability"

@@ -4,9 +4,9 @@
 import json
 from pathlib import Path
 from statistics import NormalDist
+
 import numpy as np
 import pandas as pd
-
 
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
 RESULTS_DIR = PROJECT_ROOT / "results" / "stability"
@@ -138,7 +138,7 @@ def main() -> None:
             f"(n={len(group)})"
         )
 
-        for source_column, metric_name in METRICS.items():
+        for source_column, _metric_name in METRICS.items():
             values = pd.to_numeric(
                 group[source_column],
                 errors="coerce",
