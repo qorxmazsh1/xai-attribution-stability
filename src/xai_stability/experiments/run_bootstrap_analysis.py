@@ -159,7 +159,7 @@ def main() -> None:
                 {
                     "model": model_name,
                     "perturbation": perturbation,
-                    "metric": metric_name,
+                    "metric": _metric_name,
                     "n": int(np.isfinite(values).sum()),
                     "estimate": estimate,
                     "ci_lower": lower,

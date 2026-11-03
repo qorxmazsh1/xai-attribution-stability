@@ -10,7 +10,6 @@ from xai_stability.data.preprocess import prepare_data
 @pytest.fixture
 def sample_dataset() -> pd.DataFrame:
     """Create a dataset suitable for classification preprocessing."""
-    rows = 20
 
     return pd.DataFrame(
         {
